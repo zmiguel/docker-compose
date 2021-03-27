@@ -20,7 +20,7 @@ Default | default network of each stack for intra stack comunication
 ## Stacks
 I organize my containers in stacks.
 
-Each stack has containers that either rely on eachother or are part of a groupo of apps.
+Each stack has containers that either rely on eachother or are part of a group of apps.
 for example, the plex stack has all apps related to plex such as: sonarr, radarr, jackett, etc.
 
 ### Auth Stack
