@@ -1,0 +1,152 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+  authelia:
+    image: authelia/authelia
+    container_name: authelia
+    volumes:
+      - ./authelia:/config
+    networks:
+      - default
+      - LabNetwork
+    labels:
+      traefik.enable: true
+      traefik.http.routers.authelia.rule: Host(`auth.domain.tld`)
+      traefik.http.routers.authelia.entrypoints: https
+      traefik.http.routers.authelia.tls: true
+      traefik.http.routers.authelia.middlewares: security@file
+      traefik.http.services.authelia.loadbalancer.server.port: 9091
+    expose:
+      - 9091
+    depends_on:
+      - openldap
+      - postgres
+      - redis
+    restart: always
+    environment:
+      - TZ=Europe/Lisbon
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    volumes:
+      - ./redis:/data
+    networks:
+      - default
+    expose:
+      - 6379
+    restart: always
+    environment:
+      - TZ=Europe/Lisbon
+
+  postgres:
+    image: postgres
+    container_name: auth_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=authelia
+      - POSTGRES_PASSWORD=authelia
+      - POSTGRES_DB=authelia
+    networks:
+      - default
+      - adminer
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  openldap:
+    image: osixia/openldap:latest
+    container_name: openldap
+    volumes:
+      - ./ldap/db:/var/lib/ldap
+      - ./ldap/conf:/etc/ldap/slapd.d
+    networks:
+      - default
+    expose:
+      - 389
+      - 636
+    restart: always
+    environment:
+      TZ: "Europe/Lisbon"
+      LDAP_ORGANISATION: "your_org_name"
+      LDAP_DOMAIN: "domain.tld"
+      LDAP_BASE_DN: "dc=domain,dc=tld"
+      LDAP_ADMIN_PASSWORD: "adminpassword"
+      LDAP_CONFIG_PASSWORD: "confpassword"
+      LDAP_READONLY_USER: "false"
+      LDAP_READONLY_USER_USERNAME: "readonly"
+      LDAP_READONLY_USER_PASSWORD: "readonly"
+      LDAP_RFC2307BIS_SCHEMA: "true"
+      LDAP_BACKEND: "mdb"
+      LDAP_REPLICATION: "false"
+      KEEP_EXISTING_CONFIG: "false"
+      LDAP_REMOVE_CONFIG_AFTER_SETUP: "true"
+
+  ldap-user-manager:
+    image: wheelybird/ldap-user-manager:v1.4
+    container_name: ldap-user-manager
+    networks:
+      - default
+      - LabNetwork
+    expose:
+      - 80
+      - 443
+    restart: always
+    depends_on:
+      - openldap
+    environment:
+      TZ: "Europe/Lisbon"
+      SERVER_HOSTNAME: "ldap.domain.tld"
+      ORGANISATION_NAME: "your_org_name"
+      LDAP_URI: "ldap://openldap"
+      LDAP_BASE_DN: "dc=domain,dc=tld"
+      LDAP_REQUIRE_STARTTLS: "FALSE"
+      LDAP_ADMINS_GROUP: "admins"
+      LDAP_ADMIN_BIND_DN: "cn=admin,dc=domain,dc=tld"
+      LDAP_ADMIN_BIND_PWD: "adminpassword"
+      LDAP_USES_NIS_SCHEMA: "false"
+      EMAIL_DOMAIN: "lab.domain.tld"
+      NO_HTTPS: "true"
+      SMTP_HOSTNAME: "mail.domain.tld"
+      SMTP_HOST_PORT: 465
+      SMTP_USERNAME: "alerts@mail.domain.tld"
+      SMTP_PASSWORD: "mail_password"
+      SMTP_USE_TLS: "true"
+      EMAIL_FROM_ADDRESS: "alerts@mail.domain.tld"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.ldap-user-manager.rule: Host(`ldap.domain.tld`)
+      traefik.http.routers.ldap-user-manager.entrypoints: https
+      traefik.http.routers.ldap-user-manager.tls: true
+      traefik.http.routers.ldap-user-manager.middlewares: security@file
+      traefik.http.services.ldap-user-manager.loadbalancer.server.port: 80
+
+  bitwarden:
+    image: bitwardenrs/server:latest
+    container_name: bitwarden
+    networks:
+      - default
+      - LabNetwork
+    expose:
+      - 80
+    restart: always
+    volumes:
+      - ./bitwarden/:/data/
+    environment:
+      TZ: "Europe/Lisbon"
+      YUBICO_CLIENT_ID: 60792
+      YUBICO_SECRET_KEY: yubico key for 2fa
+      DOMAIN: "https://bitwarden.domain.tld/"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.bitwarden.rule: Host(`bitwarden.domain.tld`)
+      traefik.http.routers.bitwarden.entrypoints: https
+      traefik.http.routers.bitwarden.tls: true
+      traefik.http.routers.bitwarden.middlewares: security@file
+      traefik.http.services.bitwarden.loadbalancer.server.port: 80
+    

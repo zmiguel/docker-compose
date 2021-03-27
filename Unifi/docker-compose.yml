@@ -1,0 +1,82 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+
+services:
+  certdumper:
+    image: humenius/traefik-certs-dumper
+    container_name: unifi-certdumper
+    network_mode: none
+    volumes:
+      # mount the folder which contains Traefik's `acme.json' file
+      #   in this case Traefik is started from its own docker-compose in ../traefik
+      - ../main-stack/traefik:/traefik:ro
+      # mount mailcow's SSL folder
+      - ./unifi/cert/:/output:rw
+    environment:
+      # only change this, if you're using another domain for mailcow's web frontend compared to the standard config
+      - DOMAIN=domain.tld
+
+  unifi-controller:
+    image: ghcr.io/linuxserver/unifi-controller:latest
+    container_name: unifi-controller
+    networks:
+      - default
+      - LabNetwork
+    restart: always
+    volumes:
+      - ./unifi/:/config
+      - ./unifi/backup:/unifi/data/backup
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+    ports:
+      - "3478:3478/udp" # STUN
+      - "8080:8080/tcp" # Device/ controller comm.
+      - "10001:10001/udp" # AP discovery
+    expose:
+      - 443
+      - 8443
+    labels:
+      traefik.enable: true
+      traefik.http.routers.unifi.entrypoints: https
+      traefik.http.routers.unifi.rule: Host(`unifi.domain.tld`)
+      traefik.http.routers.unifi.tls: true
+      traefik.http.routers.unifi.service: unifi
+      traefik.http.routers.unifi.middlewares: security@file
+      traefik.http.services.unifi.loadbalancer.server.port: 8443
+      traefik.http.services.unifi.loadbalancer.server.scheme: https
+      traefik.http.routers.unifi-portal.entrypoints: https
+      traefik.http.routers.unifi-portal.rule: Host(`unifi-portal.domain.tld`)
+      traefik.http.routers.unifi-portal.tls: true
+      traefik.http.routers.unifi-portal.service: unifi-portal
+      traefik.http.routers.unifi-portal.middlewares: security@file
+      traefik.http.services.unifi-portal.loadbalancer.server.port: 443
+      traefik.http.services.unifi-portal.loadbalancer.server.scheme: https
+
+  #unifi-nvr
+  unvr:
+    image: caddy:latest
+    container_name: unvr-proxy
+    networks:
+      - default
+      - LabNetwork
+    restart: unless-stopped
+    expose:
+      - 443
+    volumes: 
+      - ./unvr/caddyfile:/etc/caddy/Caddyfile
+      - ./unifi/cert/:/etc/caddy/ssl/
+    labels: 
+      traefik.enable: true
+      traefik.http.routers.unvr.entrypoints: https
+      traefik.http.routers.unvr.rule: Host(`unvr.domain.tld`)
+      traefik.http.routers.unvr.tls: true
+      traefik.http.routers.unvr.service: unvr
+      traefik.http.routers.unvr.middlewares: security@file
+      traefik.http.services.unvr.loadbalancer.server.port: 443
+      traefik.http.services.unvr.loadbalancer.server.scheme: https 
+

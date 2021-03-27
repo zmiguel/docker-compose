@@ -1,0 +1,333 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+    #Jackett
+    jackett:
+        image: ghcr.io/linuxserver/jackett:development
+        container_name: jackett
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+          - AUTO_UPDATE=true 
+        volumes:
+          - ./jackett/config:/config
+          - ./jackett/dl:/downloads
+        expose: 
+          - 9117
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.jackett.entrypoints: https
+          traefik.http.routers.jackett.rule: Host(`jackett.domain.tld`)
+          traefik.http.routers.jackett.tls: true
+          traefik.http.routers.jackett.middlewares: security-auth@file
+          traefik.http.services.jackett.loadbalancer.server.port: 9117
+    
+    #sonarr
+    sonarr:
+        image: ghcr.io/linuxserver/sonarr:develop
+        container_name: sonarr
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./sonarr/config:/config
+          - /z-data/Storage/media:/media
+          - /z-data/torrent:/downloads
+        expose:
+          - 8989
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.sonarr.entrypoints: https
+          traefik.http.routers.sonarr.rule: Host(`sonarr.domain.tld`)
+          traefik.http.routers.sonarr.tls: true
+          traefik.http.routers.sonarr.middlewares: security-auth@file
+          traefik.http.services.sonarr.loadbalancer.server.port: 8989
+
+    #radarr
+    radarr:
+        image: ghcr.io/linuxserver/radarr:nightly
+        container_name: radarr
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./radarr/config:/config
+          - /z-data/Storage/media:/media
+          - /z-data/torrent:/downloads
+        expose:
+          - 7878
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.radarr.entrypoints: https
+          traefik.http.routers.radarr.rule: Host(`radarr.domain.tld`)
+          traefik.http.routers.radarr.tls: true
+          traefik.http.routers.radarr.middlewares: security-auth@file
+          traefik.http.services.radarr.loadbalancer.server.port: 7878
+
+    #lidarr
+    lidarr:
+        image: ghcr.io/linuxserver/lidarr:nightly
+        container_name: lidarr
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./lidarr/config:/config
+          - /z-data/Storage/media:/media
+          - /z-data/torrent:/downloads
+        expose:
+          - 8686
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.lidarr.entrypoints: https
+          traefik.http.routers.lidarr.rule: Host(`lidarr.domain.tld`)
+          traefik.http.routers.lidarr.tls: true
+          traefik.http.routers.lidarr.middlewares: security-auth@file
+          traefik.http.services.lidarr.loadbalancer.server.port: 8686
+
+    #bazarr
+    bazarr:
+        image: ghcr.io/linuxserver/bazarr:development
+        container_name: bazarr
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./bazarr/config:/config
+          - /z-data/Storage/media:/media
+        expose:
+          - 6767
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.bazarr.entrypoints: https
+          traefik.http.routers.bazarr.rule: Host(`bazarr.domain.tld`)
+          traefik.http.routers.bazarr.tls: true
+          traefik.http.routers.bazarr.middlewares: security-auth@file
+          traefik.http.services.bazarr.loadbalancer.server.port: 6767
+
+    #tautulli
+    tautulli:
+        image: tautulli/tautulli:nightly
+        container_name: tautulli
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./tautulli/config:/config
+        expose:
+          - 8181
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        labels:
+          traefik.enable: true
+          traefik.http.routers.tautulli.entrypoints: https
+          traefik.http.routers.tautulli.rule: Host(`tautulli.domain.tld`)
+          traefik.http.routers.tautulli.tls: true
+          traefik.http.routers.tautulli.middlewares: security@file
+          traefik.http.services.tautulli.loadbalancer.server.port: 8181
+
+    #ombi
+    ombi:
+        image: linuxserver/ombi
+        container_name: ombi
+        environment:
+          - PUID=1000
+          - PGID=1000
+          - TZ=Europe/Lisbon
+        volumes:
+          - ./ombi/config:/config
+        expose:
+          - 3579
+        networks:
+          - default
+          - LabNetwork
+        restart: unless-stopped
+        depends_on:
+          - mariadb
+        labels:
+          traefik.enable: true
+          traefik.http.routers.ombi.entrypoints: https
+          traefik.http.routers.ombi.rule: Host(`ombi.domain.tld`)
+          traefik.http.routers.ombi.tls: true
+          traefik.http.routers.ombi.middlewares: security@file
+          traefik.http.services.ombi.loadbalancer.server.port: 3579
+
+    #mysql
+    mariadb:
+        image: mariadb
+        container_name: mariadb
+        environment:
+          - MYSQL_ROOT_PASSWORD=password
+        volumes:
+          - ./mysql/data:/var/lib/mysql
+        expose:
+          - 3306
+        networks:
+          - default
+          - LabNetwork
+          - adminer
+        restart: unless-stopped
+        labels: 
+          - traefik.enable=false
+
+    #torrent
+    qbittorrent:
+      image: ghcr.io/linuxserver/qbittorrent
+      container_name: qbittorrent
+      environment:
+        - PUID=1000
+        - PGID=1000
+        - TZ=Europe/Lisbon
+        - UMASK_SET=022
+        - WEBUI_PORT=8080
+      volumes:
+        - ./qbt:/config
+        - /z-data/torrent:/downloads
+      ports:
+        - 6881:6881
+        - 6881:6881/udp
+        - 55975:55975
+      expose:
+        - 8080
+      networks:
+        - default
+        - LabNetwork
+      restart: unless-stopped
+      labels:
+        traefik.enable: true
+        traefik.http.routers.qbittorrent.entrypoints: https
+        traefik.http.routers.qbittorrent.rule: Host(`qbt.domain.tld`)
+        traefik.http.routers.qbittorrent.tls: true
+        traefik.http.routers.qbittorrent.middlewares: security-auth@file
+        traefik.http.services.qbittorrent.loadbalancer.server.port: 8080
+
+    #plex
+    plex:
+      container_name: plex
+      image: plexinc/pms-docker:plexpass
+      restart: unless-stopped
+      ports:
+        - 32400:32400/tcp
+        - 3005:3005/tcp
+        - 8324:8324/tcp
+        - 32469:32469/tcp
+        - 1900:1900/udp
+        - 32410:32410/udp
+        - 32412:32412/udp
+        - 32413:32413/udp
+        - 32414:32414/udp
+      networks:
+        - default
+        - LabNetwork
+      environment:
+        - TZ=Europe/Lisbon
+        - ADVERTISE_IP=https://plex.domain.tld/
+        - NVIDIA_VISIBLE_DEVICES=all
+        - NVIDIA_DRIVER_CAPABILITIES=all 
+      hostname: plexserver
+      runtime: nvidia
+      volumes:
+        - "./plex/database:/config"
+        - "./plex/transcode:/transcode"
+        - "/z-data/Storage/media:/data"
+      labels:
+        traefik.enable: true
+        traefik.http.routers.plex.entrypoints: https
+        traefik.http.routers.plex.rule: Host(`plex.domain.tld`)
+        traefik.http.routers.plex.tls: true
+        traefik.http.routers.plex.middlewares: security@file
+        traefik.http.services.plex.loadbalancer.server.port: 32400
+
+    tdarr:
+      container_name: tdarr
+      image: haveagitgat/tdarr:latest
+      restart: unless-stopped
+      networks:
+          - default
+          - LabNetwork
+      expose:
+        - 8265
+      ports:
+        - "8266:8266" # node connect port
+      environment:
+        - TZ=Europe/London
+        - PUID=1000
+        - PGID=1000
+        - UMASK_SET=002
+        - serverIP=tdarr
+        - serverPort=8266
+        - webUIPort=8265
+      volumes:
+        - ./tdarr2/server:/app/server
+        - ./tdarr2/configs:/app/configs
+        - ./tdarr2/logs:/app/logs
+        - /z-data/Storage/media:/media
+        - /nvme/tdarrCache:/temp
+      labels:
+        traefik.enable: true
+        traefik.http.routers.tdarr.entrypoints: https
+        traefik.http.routers.tdarr.rule: Host(`tdarr.domain.tld`)
+        traefik.http.routers.tdarr.tls: true
+        traefik.http.routers.tdarr.middlewares: security-auth@file
+        traefik.http.services.tdarr.loadbalancer.server.port: 8265
+
+    tdarr-node:
+      container_name: tdarr-node
+      image: haveagitgat/tdarr_node:latest
+      restart: unless-stopped
+      networks:
+          - default
+      expose:
+        - 8267
+      environment:
+        - TZ=Europe/London
+        - PUID=1000
+        - PGID=1000
+        - UMASK_SET=002
+        - nodeID=DellR710
+        - nodeIP=tdarr-node
+        - nodePort=8267
+        - serverIP=tdarr
+        - serverPort=8266
+        - NVIDIA_VISIBLE_DEVICES=all
+        - NVIDIA_DRIVER_CAPABILITIES=all
+      volumes:
+        - ./tdarr2/configs:/app/configs
+        - ./tdarr2/logs:/app/logs
+        - /z-data/Storage/media:/media
+        - /nvme/tdarrCache:/temp
+      runtime: nvidia

@@ -1,0 +1,229 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+  xbb:
+    image: pe46dro/xbackbone-docker:latest
+    container_name: xbb
+    restart: always
+    environment:
+      - TZ=Europe/Lisbon
+      - PUID=1000
+      - PGID=1000
+      - APP_NAME=OxedShare
+      - URL=https://share.domain.tld
+      - PHP_UPLOAD_MAX_FILESIZE=16G
+      - PHP_POST_MAX_SIZE=16G
+    expose:
+      - '80'
+    networks:
+      - default
+      - LabNetwork
+    depends_on:
+      - "xbb-db"
+    volumes:
+      - ./xbb/storage:/app/storage
+      - ./xbb/database:/app/resources/database
+      - ./xbb/logs:/app/logs
+      - ./xbb/config:/app/config
+    labels:
+      traefik.enable: true
+      traefik.http.routers.sharex.entrypoints: https
+      traefik.http.routers.sharex.rule: Host(`share.domain.tld`)
+      traefik.http.routers.sharex.tls: true
+      traefik.http.routers.sharex.middlewares: security@file
+      traefik.http.services.sharex.loadbalancer.server.port: 80
+
+  xbb-db:
+    image: mysql:5.7
+    container_name: xbb-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: xbbrootpassword
+      MYSQL_DATABASE: xbb
+      MYSQL_USER: xbb
+      MYSQL_PASSWORD: xbbpassword
+    expose:
+      - '3306'
+    volumes:
+      - ./xbb_mariadb:/var/lib/mysql
+    networks:
+      - default
+      - LabNetwork
+      - adminer
+
+  taskcafe:
+    image: taskcafe/taskcafe:latest
+    container_name: taskcafe
+    restart: unless-stopped
+    expose:
+      - 3333
+    depends_on:
+      - postgres_web
+    networks:
+      - default
+      - LabNetwork
+    environment:
+      TASKCAFE_DATABASE_HOST: postgres_web
+      TASKCAFE_MIGRATE: "true"
+    labels:
+      traefik.enable: true
+      traefik.http.routers.taskcafe.entrypoints: https
+      traefik.http.routers.taskcafe.rule: Host(`tasks.domain.tld`)
+      traefik.http.routers.taskcafe.tls: true
+      traefik.http.routers.taskcafe.middlewares: security@file
+      traefik.http.services.taskcafe.loadbalancer.server.port: 3333
+
+  postgres_web:
+    image: postgres:12.3-alpine
+    container_name: web_postgres
+    restart: always
+    networks:
+      - default
+      - adminer
+    environment:
+      POSTGRES_USER: taskcafe
+      POSTGRES_PASSWORD: taskcafe_test
+      POSTGRES_DB: taskcafe
+    volumes:
+    - ./postgres:/var/lib/postgresql/data
+
+  ghost:
+    image: ghost:3-alpine
+    container_name: ghost_blog
+    restart: always
+    expose:
+      - 2368
+    networks:
+      - default
+      - LabNetwork
+    environment:
+      # see https://docs.ghost.org/docs/config#section-running-ghost-with-config-env-variables
+      database__client: mysql
+      database__connection__host: ghost_db
+      database__connection__user: ghost
+      database__connection__password: ghostpassword
+      database__connection__database: ghost
+      url: https://domain.tld/
+    volumes:
+      - ./ghost:/var/lib/ghost/content
+    depends_on: 
+      - ghost_db
+    labels:
+      traefik.enable: true
+      traefik.http.routers.ghost.entrypoints: https
+      traefik.http.routers.ghost.rule: Host(`domain.tld`,`www.domain.tld`)
+      traefik.http.routers.ghost.tls: true
+      traefik.http.routers.ghost.middlewares: security@file
+      traefik.http.services.ghost.loadbalancer.server.port: 2368
+
+  ghost_db:  
+    image: mysql:5.7
+    container_name: ghost_db
+    volumes:
+      - ./ghost/db:/var/lib/mysql
+    restart: always
+    networks:
+      - default
+      - adminer
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: ghost
+      MYSQL_USER: ghost
+      MYSQL_PASSWORD: ghostpassword
+
+  plexyear:
+    image: php:7-apache
+    container_name: plexyear
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+    volumes:
+      - ./plexyear/:/var/www/html
+    expose:
+      - 80
+    networks:
+      - default
+      - LabNetwork
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.http.routers.plexyear.entrypoints: https
+      traefik.http.routers.plexyear.rule: Host(`plexyear.domain.tld`)
+      traefik.http.routers.plexyear.tls: true
+      traefik.http.routers.plexyear.middlewares: security@file
+      traefik.http.services.plexyear.loadbalancer.server.port: 80
+
+  grocy:
+    image: ghcr.io/linuxserver/grocy:latest
+    container_name: grocy
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=Europe/Lisbon
+    volumes:
+      - ./grocy:/config
+    expose:
+      - 80
+    networks:
+      - default
+      - LabNetwork
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.http.routers.grocy.entrypoints: https
+      traefik.http.routers.grocy.rule: Host(`grocy.domain.tld`)
+      traefik.http.routers.grocy.tls: true
+      traefik.http.routers.grocy.middlewares: security@file
+      traefik.http.services.grocy.loadbalancer.server.port: 80
+
+  ghost-cebola:
+    image: ghost:3-alpine
+    container_name: ghost_cebola
+    restart: always
+    expose:
+      - 2368
+    networks:
+      - default
+      - LabNetwork
+    environment:
+      # see https://docs.ghost.org/docs/config#section-running-ghost-with-config-env-variables
+      database__client: mysql
+      database__connection__host: cebola_db
+      database__connection__user: cebola
+      database__connection__password: cebolapassword
+      database__connection__database: cebola
+      url: https://acebola.pt/
+    volumes:
+      - ./cebola:/var/lib/ghost/content
+    depends_on:
+      - cebola_db
+    labels:
+      traefik.enable: true
+      traefik.http.routers.ghost-cebola.entrypoints: https
+      traefik.http.routers.ghost-cebola.rule: Host(`acebola.pt`,`www.acebola.pt`)
+      traefik.http.routers.ghost-cebola.tls: true
+      traefik.http.routers.ghost-cebola.middlewares: security@file
+      traefik.http.services.ghost-cebola.loadbalancer.server.port: 2368
+
+  cebola_db:
+    image: mysql:5.7
+    container_name: cebola_db
+    volumes:
+      - ./cebola/db:/var/lib/mysql
+    restart: always
+    networks:
+      - default
+      - adminer
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: cebola
+      MYSQL_USER: cebola
+      MYSQL_PASSWORD: cebolapassword
+

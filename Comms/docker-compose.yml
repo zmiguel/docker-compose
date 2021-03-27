@@ -1,0 +1,106 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+  teamspeak:
+    image: teamspeak:latest
+    restart: always
+    ports:
+      - 9987:9987/udp
+      - 10011:10011
+      - 30033:30033
+    environment:
+      TZ: 'Europe/Lisbon'
+    volumes:
+       - './teamspeak/:/var/ts3server/'
+    environment:
+      TS3SERVER_LICENSE: accept
+
+  sinusbot:
+    image: sinusbot/docker
+    container_name: sinubot
+    restart: always
+    expose:
+      - 8087
+    networks:
+      - LabNetwork
+      - default
+    environment:
+      UID: 1000
+      GID: 1000
+    volumes:
+      - ./sinus/scripts:/opt/sinusbot/scripts
+      - ./sinus/data:/opt/sinusbot/data
+    labels:
+      traefik.enable: true
+      traefik.http.routers.sinusbot.rule: Host(`sinus.domain.tld`)
+      traefik.http.routers.sinusbot.entrypoints: https
+      traefik.http.routers.sinusbot.tls: true
+      traefik.http.routers.sinusbot.middlewares: security@file
+      traefik.http.services.sinusbot.loadbalancer.server.port: 8087
+
+  xmpp-postgres:
+    image: postgres
+    container_name: xmpp_postgres
+    restart: always
+    environment:
+      - POSTGRES_USER=xmpp
+      - POSTGRES_PASSWORD=xmpppassword
+      - POSTGRES_DB=xmpp
+    networks:
+      - default
+      - adminer
+    volumes:
+      - ./postgres:/var/lib/postgresql/data
+
+  certdumper:
+    image: humenius/traefik-certs-dumper
+    container_name: xmpp-certdumper
+    network_mode: none
+    volumes:
+      # mount the folder which contains Traefik's `acme.json' file
+      #   in this case Traefik is started from its own docker-compose in ../traefik
+      - ../main-stack/traefik:/traefik:ro
+      # mount mailcow's SSL folder
+      - ./xmpp/ssl/:/output:rw
+    environment:
+      # only change this, if you're using another domain for mailcow's web frontend compared to the standard config
+      - DOMAIN=domain.tld
+
+  xmpp:
+    image: ejabberd/ecs
+    container_name: xmpp
+    restart: always
+    expose:
+      - 5443
+    ports:
+      - 5222:5222
+      - 5223:5223
+      - 5269:5269
+      - 3478:3478
+      - 5349:5349
+    networks:
+      - LabNetwork
+      - default
+    depends_on: 
+      - certdumper
+      - xmpp-postgres
+    volumes:
+      - ./xmpp/logs:/home/ejabberd/logs/
+      - ./xmpp/db:/home/ejabberd/database/
+      - ./xmpp/ejabberd.yml:/home/ejabberd/conf/ejabberd.yml
+      - ./xmpp/ssl:/home/ejabberd/conf/ssl/
+      - ./xmpp/uploads:/home/ejabberd/conf/uploads/
+    labels:
+      traefik.enable: true
+      traefik.http.routers.xmpp.rule: Host(`chat.domain.tld`,`conference.chat.domain.tld`,`proxy.chat.domain.tld`,`pubsub.chat.domain.tld`,`vjud.chat.domain.tld`,`upload.chat.domain.tld`)
+      traefik.http.routers.xmpp.entrypoints: https
+      traefik.http.routers.xmpp.tls: true
+      traefik.http.routers.xmpp.middlewares: security@file
+      traefik.http.services.xmpp.loadbalancer.server.port: 5443
+      traefik.http.services.xmpp.loadbalancer.server.scheme: https

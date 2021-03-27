@@ -1,0 +1,57 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+  nextcloud-isec:
+    image: nextcloud:latest
+    container_name: nextcloud-isec
+    volumes:
+      - ./nextcloud:/var/www/html
+      - /z-data/Storage/isec/:/var/www/html/data
+    networks:
+      - default
+      - LabNetwork
+    labels:
+      traefik.enable: true
+      traefik.http.routers.nextcloud-isec.rule: Host(`isec.domain.tld`)
+      traefik.http.routers.nextcloud-isec.entrypoints: https
+      traefik.http.routers.nextcloud-isec.tls: true
+      traefik.http.routers.nextcloud-isec.middlewares: security@file,nextcloud_redirect
+      traefik.http.services.nextcloud-isec.loadbalancer.server.port: 80
+      traefik.http.middlewares.nextcloud_redirect.redirectregex.regex: /.well-known/(card|cal)dav
+      traefik.http.middlewares.nextcloud_redirect.redirectregex.replacement: /remote.php/dav/
+    expose:
+      - 80
+    depends_on:
+      - postgres-isec
+    restart: always
+    environment:
+      - TZ=Europe/Lisbon
+      - SMTP_HOST=mail.domain.tld
+      - SMTP_SECURE=tls
+      - SMTP_PORT=587
+      - SMTP_NAME=isec@domain.tld
+      - MAIL_FROM_ADDRESS=isec@domain.tld
+      - SMTP_PASSWORD=email_password
+      - TRUSTED_PROXIES=traefik #this is the hostname of the traefik container
+      - OVERWRITEPROTOCOL=https
+      - OVERWRITEHOST=isec.domain.tld
+
+  postgres-isec:
+    image: postgres
+    container_name: postgres-isec
+    restart: always
+    environment:
+      - POSTGRES_USER=nextcloud
+      - POSTGRES_PASSWORD=nextcloud
+      - POSTGRES_DB=nextcloud
+    networks:
+      - default
+      - adminer
+    volumes:
+      - ./postgres:/var/lib/postgresql/data

@@ -1,0 +1,165 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+  adminer:
+      external: true
+
+services:
+  influxdb:
+    image: influxdb:1.8
+    container_name: influxdb
+    restart: always
+    ports:
+      - '8086:8086'
+    volumes:
+      - ./influxdb:/var/lib/influxdb
+    environment:
+      - INFLUXDB_ADMIN_USER=user
+      - INFLUXDB_ADMIN_PASSWORD=password
+
+  chronograf:
+    image: chronograf:latest
+    container_name: chronogarf
+    restart: unless-stopped
+    expose:
+      - 8888
+    networks:
+      - default
+      - LabNetwork
+    volumes:
+      - ./chronograf:/var/lib/chronograf
+    depends_on:
+      - influxdb
+    environment:
+      - INFLUXDB_URL=http://influxdb:8086
+      - INFLUXDB_USERNAME=user
+      - INFLUXDB_PASSWORD=password
+    labels:
+      traefik.enable: true
+      traefik.http.routers.chronograf.entrypoints: https
+      traefik.http.routers.chronograf.rule: Host(`chronograf.domain.tld`)
+      traefik.http.routers.chronograf.tls: true
+      traefik.http.routers.chronograf.middlewares: security-auth@file
+      traefik.http.services.chronograf.loadbalancer.server.port: 8888
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    expose: 
+      - 3000
+    networks:
+      - default
+      - LabNetwork
+    volumes:
+      - ./grafana:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning
+    depends_on:
+      - influxdb
+    environment:
+      - GF_SECURITY_ADMIN_USER=user
+      - GF_SECURITY_ADMIN_PASSWORD=password
+    labels:
+      traefik.enable: true
+      traefik.http.routers.grafana.entrypoints: https
+      traefik.http.routers.grafana.rule: Host(`monit.domain.tld`)
+      traefik.http.routers.grafana.tls: true
+      traefik.http.routers.grafana.middlewares: security@file
+      traefik.http.services.grafana.loadbalancer.server.port: 3000
+
+  shynet:
+    container_name: shynet_main
+    image: milesmcc/shynet:latest
+    restart: unless-stopped
+    expose:
+      - 8080
+    env_file:
+      - .env
+    environment:
+      - DB_HOST=shynet_db
+    networks:
+      - default
+      - LabNetwork
+    depends_on:
+      - shynet_db
+    labels:
+      traefik.enable: true
+      traefik.http.routers.shynet.entrypoints: https
+      traefik.http.routers.shynet.rule: Host(`shy.domain.tld`)
+      traefik.http.routers.shynet.tls: true
+      traefik.http.routers.shynet.middlewares: security@file
+      traefik.http.services.shynet.loadbalancer.server.port: 8080
+
+  shynet_db:
+    container_name: shynet_database
+    image: postgres
+    restart: always
+    environment:
+      - "POSTGRES_USER=${DB_USER}"
+      - "POSTGRES_PASSWORD=${DB_PASSWORD}"
+      - "POSTGRES_DB=${DB_NAME}"
+    volumes:
+      - ./shynet_db:/var/lib/postgresql/data
+    networks:
+      - default
+      - adminer
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/etc/prometheus'
+    expose:
+      - 9090
+    networks:
+      - default
+      - LabNetwork
+    restart: always
+
+  goaccess-nginx:
+    image: nginx
+    container_name: goaccess-nginx
+    restart: unless-stopped
+    expose:
+      - 80
+    networks:
+      - default
+      - LabNetwork
+    volumes:
+      - ./goaccess/html/index.html:/usr/share/nginx/html/index.html
+#    depends_on:
+#      - goaccess
+    labels:
+      traefik.enable: true
+      traefik.http.routers.goaccess.entrypoints: https
+      traefik.http.routers.goaccess.rule: Host(`logs.domain.tld`)
+      traefik.http.routers.goaccess.tls: true
+      traefik.http.routers.goaccess.middlewares: security-auth@file
+      traefik.http.services.goaccess.loadbalancer.server.port: 80
+
+#  goaccess:
+#    image: allinurl/goaccess
+#    container_name: goaccess
+#    restart: unless-stopped
+#    expose:
+#      - 7890
+#    networks:
+#      - default
+#      - LabNetwork
+#    volumes:
+#      - ./goaccess/html/index.html:/goaccess/index.html
+#      - ../main-stack/traefik/logs/access.log:/goaccess/access.log
+#      - ./goaccess/GeoLite2-City.mmdb:/goaccess/GeoLite2-City.mmdb
+#      - ./goaccess/db/:/goaccess/db/
+#    command: /goaccess/access.log -o /goaccess/index.html --real-time-html --port=7890 --ws-url=logs.domain.tld --restore --persist --db-path /goaccess/db/ --geoip-database /goaccess/GeoLite2-City.mmdb --log-format='%h - %e [%d:%t %^] "%m %U %H" %s %b "%R" "%u" %^ "%v" "%^" %Lms' --date-format=%d/%b/%Y --time-format=%H:%M:%S
+#    labels:
+#      traefik.enable: true
+#      traefik.http.routers.goaccesswss.entrypoints: wss
+#      traefik.http.routers.goaccesswss.rule: Host(`logs.domain.tld`)
+#      traefik.http.routers.goaccesswss.tls: true
+#      traefik.http.services.goaccesswss.loadbalancer.server.port: 7890
