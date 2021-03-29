@@ -331,3 +331,89 @@ services:
         - /z-data/Storage/media:/media
         - /nvme/tdarrCache:/temp
       runtime: nvidia
+
+    influxdb-varken:
+      hostname: influxdb-varken
+      container_name: influxdb-varken
+      image: influxdb:1.8
+      networks:
+        - default
+        - LabNetwork
+      volumes:
+        - ./influx-varken:/var/lib/influxdb
+      restart: unless-stopped
+
+    varken:
+      hostname: varken
+      container_name: varken
+      image: boerderij/varken
+      networks:
+        - default
+      volumes:
+        - ./varken:/config
+      environment:
+        - TZ=Europe/Lisbon
+        - VRKN_GLOBAL_SONARR_SERVER_IDS=1
+        - VRKN_GLOBAL_RADARR_SERVER_IDS=1
+        - VRKN_GLOBAL_LIDARR_SERVER_IDS=false
+        - VRKN_GLOBAL_TAUTULLI_SERVER_IDS=1
+        - VRKN_GLOBAL_OMBI_SERVER_IDS=1
+        - VRKN_GLOBAL_SICKCHILL_SERVER_IDS=false
+        - VRKN_GLOBAL_UNIFI_SERVER_IDS=false
+        - VRKN_GLOBAL_MAXMIND_LICENSE_KEY=xxxxx
+        - VRKN_INFLUXDB_URL=influxdb-varken
+        - VRKN_INFLUXDB_PORT=8086
+        - VRKN_INFLUXDB_SSL=false
+        - VRKN_INFLUXDB_VERIFY_SSL=false
+        - VRKN_INFLUXDB_USERNAME=root
+        - VRKN_INFLUXDB_PASSWORD=root
+        - VRKN_TAUTULLI_1_URL=tautulli:8181
+        - VRKN_TAUTULLI_1_FALLBACK_IP=1.1.1.1
+        - VRKN_TAUTULLI_1_APIKEY=xxxxx
+        - VRKN_TAUTULLI_1_SSL=false
+        - VRKN_TAUTULLI_1_VERIFY_SSL=false
+        - VRKN_TAUTULLI_1_GET_ACTIVITY=true
+        - VRKN_TAUTULLI_1_GET_ACTIVITY_RUN_SECONDS=30
+        - VRKN_TAUTULLI_1_GET_STATS=true
+        - VRKN_TAUTULLI_1_GET_STATS_RUN_SECONDS=3600
+        - VRKN_SONARR_1_URL=sonarr:8989
+        - VRKN_SONARR_1_APIKEY=xxxxx
+        - VRKN_SONARR_1_SSL=false
+        - VRKN_SONARR_1_VERIFY_SSL=false
+        - VRKN_SONARR_1_MISSING_DAYS=7
+        - VRKN_SONARR_1_MISSING_DAYS_RUN_SECONDS=300
+        - VRKN_SONARR_1_FUTURE_DAYS=1
+        - VRKN_SONARR_1_FUTURE_DAYS_RUN_SECONDS=300
+        - VRKN_SONARR_1_QUEUE=true
+        - VRKN_SONARR_1_QUEUE_RUN_SECONDS=300
+        - VRKN_RADARR_1_URL=radarr
+        - VRKN_RADARR_1_APIKEY=xxxxx
+        - VRKN_RADARR_1_SSL=false
+        - VRKN_RADARR_1_VERIFY_SSL=false
+        - VRKN_RADARR_1_QUEUE=true
+        - VRKN_RADARR_1_QUEUE_RUN_SECONDS=300
+        - VRKN_RADARR_1_GET_MISSING=true
+        - VRKN_RADARR_1_GET_MISSING_RUN_SECONDS=300
+        - VRKN_LIDARR_1_URL=lidarr:8686
+        - VRKN_LIDARR_1_APIKEY=xxxxx
+        - VRKN_LIDARR_1_SSL=false
+        - VRKN_LIDARR_1_VERIFY_SSL=false
+        - VRKN_LIDARR_1_MISSING_DAYS=30
+        - VRKN_LIDARR_1_MISSING_DAYS_RUN_SECONDS=300
+        - VRKN_LIDARR_1_FUTURE_DAYS=30
+        - VRKN_LIDARR_1_FUTURE_DAYS_RUN_SECONDS=300
+        - VRKN_LIDARR_1_QUEUE=true
+        - VRKN_LIDARR_1_QUEUE_RUN_SECONDS=300
+        - VRKN_OMBI_1_URL=ombi:3579
+        - VRKN_OMBI_1_APIKEY=xxxxx
+        - VRKN_OMBI_1_SSL=false
+        - VRKN_OMBI_1_VERIFY_SSL=false
+        - VRKN_OMBI_1_GET_REQUEST_TYPE_COUNTS=true
+        - VRKN_OMBI_1_REQUEST_TYPE_RUN_SECONDS=300
+        - VRKN_OMBI_1_GET_REQUEST_TOTAL_COUNTS=true
+        - VRKN_OMBI_1_REQUEST_TOTAL_RUN_SECONDS=300
+        - VRKN_OMBI_1_GET_ISSUE_STATUS_COUNTS=true
+        - VRKN_OMBI_1_ISSUE_STATUS_RUN_SECONDS=300
+      depends_on:
+        - influxdb-varken
+      restart: unless-stopped
