@@ -5,7 +5,7 @@ They are compose 3.8 compatible and run on docker v20+
 
 ## Requirements
 - [Docker](https://www.docker.com/)
-- [docker-compose](https://docs.docker.com/compose/install/)
+- [Docker-Compose](https://docs.docker.com/compose/install/)
 
 ## Docker Network
 Each stack has a few networks to connect to eachother.
