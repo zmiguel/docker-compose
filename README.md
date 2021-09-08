@@ -1,5 +1,5 @@
 
-# docker-compose files
+# Docker-compose Files
 This repository hosts a public version of the docker-compose files I use in my homelab.
 They are compose 3.8 compatible and run on docker v20+
 
