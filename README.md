@@ -58,11 +58,32 @@ gitea | Git server
 postgres | database for Gitea
 
 ### Games Stack
-Host some game servers shall we
+Pterodacyl game hosting panel
 
 Container | Purpose
 ----|----
-minecraft | Minecraft Java server
+ptero-certdumper | Dumps traefik SSL certificates so they can be used in pterodacyl
+panel | the main pterodacyl panel container
+worker | worker for pterodacyl
+cron | cron for pterodacyl
+cache | redis for pterodacyl
+mysql | database for pterodacyl
+
+### Geth Stack
+Ethereum node
+
+Container | Purpose
+----|----
+geth | Ethereum node
+
+### Invoice Stack
+Invoicing for services I run
+
+Container | Purpose
+----|----
+server | web server for invoiceninja
+invoiceninja | invoiceninja invoicing software
+db | mysql server for invoiceninja
 
 ### ISEC Stack
 This stack hosts nextcloud so we can share class notes and exams from our university with our classmates, whitout relying on the university. We got tired of them deleting stuff every year #DataHoarder.
@@ -79,12 +100,14 @@ Container | Purpose
 ----|----
 Traefik | Reverse proxy for all other services
 portainer | Web interface to manage your docker containers
-pi-hole | Network-wide ad blocker
+adguard | Network-wide ad blocker
 duplicati | Backup manager
 samba | Share folder in the home network
 watchtower | Automatic docker container updates
 adminer | Web interface to manage your databases
-wireguard | VPN do securely connect to your home network outside of your home
+wg-easy | VPN do securely connect to your home network outside of your home
+syncthing | sync data between devices
+languagetool | gramarly, but better
 
 ### Metrics Stack
 Everyone loves graphs and stats from their server
@@ -92,13 +115,14 @@ Everyone loves graphs and stats from their server
 Container | Purpose
 ----|----
 influxdb | Time-based databse for time related metrics
+influxdb2 | Time-based databse for time related metrics V2
 chronograph | View and manage InfluxDB data
 grafana | Dashboard to view all the data you are collecting
 shynet | Alternative to google analytics 
 shynet_db | Database for shynet
 prometheus | Metrics collector
-goaccess | Web server log analyser
-goaccess-nginx | Webserver to serve the goaccess html
+speedtest | metrics about your internet speed
+scrutiny | disk SMART data on a neat website
 
 ### Plex Stack
 Everything related to plex and media management
@@ -107,18 +131,19 @@ Uses Nvidia GPU on some containers
 
 Container | Purpose
 ----|----
-jackett | BitTorrent site aggregator
+prowlarr | BitTorrent site aggregator
 sonarr | TV Show manager
 radarr | Movie manager
 lidarr | Music manager
 bazarr | Subtittle manager
 tautulli | Plex stats and newsletters
-ombi | Allow user to request new media
-maridb | Database for ombi
+petio | Allow user to request new media
+mongo-petio | Database for petio
 qbittorrent | BitTorrent client
 plex | Plex media server itself
 tdarr | Transcode manager, h264 -> h265 to save space on disk
 tdarr-node | Tdarr node that does the actual transcoding
+varken | plex metrics in grafana
 
 ### Tracker Stack
 I decided to run my own open BitTorrent tracker
@@ -147,11 +172,11 @@ Container | Purpose
 ----|----
 xbb | ShareX upload server, share your screenshots, files, etc with people
 xbb-db | Database for xbb
-taskcafe | Kanboard style task manager
-postgres_web | Taskcafe database
 ghost | My personal blog
 ghost_db | Database for my personal blog
-plexyear | Yearly plex stats
 grocy | Manage your groceries and household tasks
-ghost-cebola | Personal project
-cebola_db | Database for the personal project
+web_mysql | mysql database for bookstack
+bookstack | documentation
+planka | kanboard done right
+postgres-board | database for planka
+flame | a dashboard

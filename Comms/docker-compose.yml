@@ -10,14 +10,16 @@ services:
   teamspeak:
     image: teamspeak:latest
     restart: always
-    ports:
-      - 9987:9987/udp
-      - 10011:10011
-      - 30033:30033
+    container_name: teamspeak
+    network_mode: host
+#    ports:
+#      - 9987:9987/udp
+#      - 10011:10011
+#      - 30033:30033
     environment:
       TZ: 'Europe/Lisbon'
     volumes:
-       - './teamspeak/:/var/ts3server/'
+      - './teamspeak/:/var/ts3server/'
     environment:
       TS3SERVER_LICENSE: accept
 
@@ -27,6 +29,8 @@ services:
     restart: always
     expose:
       - 8087
+    ports:
+      - 8088:8087
     networks:
       - LabNetwork
       - default

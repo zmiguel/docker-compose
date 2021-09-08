@@ -11,13 +11,43 @@ services:
     image: influxdb:1.8
     container_name: influxdb
     restart: always
+    networks:
+      - default
+      - LabNetwork
     ports:
-      - '8086:8086'
+      - 8087:8086
+    expose:
+      - 8086
     volumes:
       - ./influxdb:/var/lib/influxdb
     environment:
       - INFLUXDB_ADMIN_USER=user
       - INFLUXDB_ADMIN_PASSWORD=password
+
+  influxdb2:
+    image: influxdb:2.0
+    container_name: influxdb2
+    restart: always
+    networks:
+      - default
+      - LabNetwork
+    ports:
+      - '8086:8086'
+    expose: 
+      - 8086
+    volumes:
+      - ./influxdb2/data:/var/lib/influxdb2
+      - ./influxdb2/config.yml:/etc/influxdb2/config.yml
+    environment:
+      - INFLUXDB_ADMIN_USER=user
+      - INFLUXDB_ADMIN_PASSWORD=password
+    labels:
+      traefik.enable: true
+      traefik.http.routers.influx.entrypoints: https
+      traefik.http.routers.influx.rule: Host(`influx.domain.tld`)
+      traefik.http.routers.influx.tls: true
+      traefik.http.routers.influx.middlewares: security@file
+      traefik.http.services.influx.loadbalancer.server.port: 8086
 
   chronograf:
     image: chronograf:latest
@@ -50,6 +80,8 @@ services:
     restart: unless-stopped
     expose: 
       - 3000
+    ports:
+      - 3333:3000
     networks:
       - default
       - LabNetwork
@@ -121,45 +153,52 @@ services:
       - LabNetwork
     restart: always
 
-  goaccess-nginx:
-    image: nginx
-    container_name: goaccess-nginx
+  speedtest:
+    restart: unless-stopped
+    network_mode: host
+    container_name: speedtest
+    build: ./speedtest
+#    image: turbothinh/network-speedtest:latest
+    environment:
+      - CRON_CONFIG='*/5 * * * *'
+      - SPEEDTEST_HOST=Home
+      - SPEEDTEST_SERVER_ID=30945
+      - INFLUXDB_DB=network_speed
+      - INFLUXDB_ADMIN_USER=user
+      - INFLUXDB_ADMIN_PASSWORD=password
+      - INFLUXDB_HOST=localhost
+      - INFLUXDB_PORT=8087
+
+  scrutiny:
+    image: analogj/scrutiny:latest
+    container_name: scrutiny
     restart: unless-stopped
     expose:
-      - 80
+      - 8080
     networks:
       - default
       - LabNetwork
     volumes:
-      - ./goaccess/html/index.html:/usr/share/nginx/html/index.html
-#    depends_on:
-#      - goaccess
+      - /run/udev:/run/udev:ro
+      - ./scrutiny:/scrutiny/config
+    devices:
+      - /dev/sda
+      - /dev/sdb
+      - /dev/sdc
+      - /dev/sdd
+      - /dev/sde
+      - /dev/sdf
+      - /dev/sdg
+      - /dev/sdh
+      - /dev/nvme0
+    cap_add: 
+      - SYS_RAWIO
+      - SYS_ADMIN
     labels:
       traefik.enable: true
-      traefik.http.routers.goaccess.entrypoints: https
-      traefik.http.routers.goaccess.rule: Host(`logs.domain.tld`)
-      traefik.http.routers.goaccess.tls: true
-      traefik.http.routers.goaccess.middlewares: security-auth@file
-      traefik.http.services.goaccess.loadbalancer.server.port: 80
+      traefik.http.routers.scrutiny.entrypoints: https
+      traefik.http.routers.scrutiny.rule: Host(`smart.domain.tld`)
+      traefik.http.routers.scrutiny.tls: true
+      traefik.http.routers.scrutiny.middlewares: security-auth@file
+      traefik.http.services.scrutiny.loadbalancer.server.port: 8080
 
-#  goaccess:
-#    image: allinurl/goaccess
-#    container_name: goaccess
-#    restart: unless-stopped
-#    expose:
-#      - 7890
-#    networks:
-#      - default
-#      - LabNetwork
-#    volumes:
-#      - ./goaccess/html/index.html:/goaccess/index.html
-#      - ../main-stack/traefik/logs/access.log:/goaccess/access.log
-#      - ./goaccess/GeoLite2-City.mmdb:/goaccess/GeoLite2-City.mmdb
-#      - ./goaccess/db/:/goaccess/db/
-#    command: /goaccess/access.log -o /goaccess/index.html --real-time-html --port=7890 --ws-url=logs.domain.tld --restore --persist --db-path /goaccess/db/ --geoip-database /goaccess/GeoLite2-City.mmdb --log-format='%h - %e [%d:%t %^] "%m %U %H" %s %b "%R" "%u" %^ "%v" "%^" %Lms' --date-format=%d/%b/%Y --time-format=%H:%M:%S
-#    labels:
-#      traefik.enable: true
-#      traefik.http.routers.goaccesswss.entrypoints: wss
-#      traefik.http.routers.goaccesswss.rule: Host(`logs.domain.tld`)
-#      traefik.http.routers.goaccesswss.tls: true
-#      traefik.http.services.goaccesswss.loadbalancer.server.port: 7890

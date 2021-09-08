@@ -7,25 +7,33 @@ networks:
         external: true
 
 services:
-  #Traefik proxy
+    #Traefik proxy
     traefik:
         container_name: traefik
-        image: traefik:v2.4
+        image: traefik:v2.5
         restart: always
         security_opt:
             - no-new-privileges:true
         environment:
-            - "CF_API_EMAIL=cloudflare_email"
-            - "CF_API_KEY=cloudflare_api"
-            - "CF_DNS_API_TOKEN=cloudflare_api"
-            - "CF_ZONE_API_TOKEN=cloudflare_api"
+            - "CF_API_EMAIL=email"
+            - "CF_API_KEY=key"
+            - "CF_DNS_API_TOKEN=token"
+            - "CF_ZONE_API_TOKEN=zone"
         networks:
             - LabNetwork
             - default
         ports:
             - 80:80
-            - 443:443
+            - "443:443/tcp"
+            - "443:443/udp"
             - 7890:7890
+        ulimits:
+            nofile:
+                soft: 1048576
+                hard: 1048576
+        sysctls:
+                net.ipv4.ip_local_port_range: 12000 65535
+#                net.core.rmem_max: 2500000
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock:ro
             - /etc/localtime:/etc/localtime:ro
@@ -43,7 +51,7 @@ services:
             traefik.http.routers.traefik-secure.tls: true
             traefik.http.routers.traefik-secure.tls.certresolver: letsencrypt
             traefik.http.routers.traefik-secure.tls.domains[0].main: domain.tld
-            traefik.http.routers.traefik-secure.tls.domains[0].sans: "*.domain.tld,otherdomain.tld,*.otherdomain.tld,domain3.tld,*.domain3.tld,*.mail.domain.tld,*.chat.domain.tld,*.lab.domain.tld,domain4.tld,*.domain4.tld"
+            traefik.http.routers.traefik-secure.tls.domains[0].sans: "*.domain.tld"
             traefik.http.routers.traefik-secure.service: api@internal
 
     portainer:
@@ -53,12 +61,14 @@ services:
         expose:
             - 9000
             - 8000
+        ports:
+            - 9000:9000
         volumes:
             - /var/run/docker.sock:/var/run/docker.sock
             - ./portainer/data:/data
         networks:
-            - default
             - LabNetwork
+            - default
         labels:
             traefik.enable: true
             traefik.http.routers.portainer.entrypoints: https
@@ -66,34 +76,46 @@ services:
             traefik.http.routers.portainer.tls: true
             traefik.http.routers.portainer.middlewares: security-auth@file
             traefik.http.services.portainer.loadbalancer.server.port: 9000
-    
-    pihole:
-        container_name: pihole
-        image: pihole/pihole:latest
+
+    adguard:
+        container_name: adguard
+        image: adguard/adguardhome:latest
         networks:
-        - LabNetwork
+            - LabNetwork
         ports:
-        - "53:53/tcp"
-        - "53:53/udp"
-        - "67:67/udp"
+            - "53:53/tcp"
+            - "53:53/udp"
+            - "853:853/tcp"
+            - "784:784/udp"
         expose:
-        - 80
-        - 443
+            - 443
         environment:
-        - TZ='Europe/Lisbon'
+            - TZ='Europe/Lisbon'
         volumes:
-        - './pihole/etc-pihole/:/etc/pihole/'
-        - './pihole/etc-dnsmasq.d/:/etc/dnsmasq.d/'
-        dns:
-        - 1.1.1.1
+            - ./adguard/workdir:/opt/adguardhome/work
+            - ./adguard/confdir:/opt/adguardhome/conf
         restart: unless-stopped
         labels:
             traefik.enable: true
-            traefik.http.routers.pihole.entrypoints: https
-            traefik.http.routers.pihole.rule: Host(`pi-hole.domain.tld`)
-            traefik.http.routers.pihole.tls: true
-            traefik.http.routers.pihole.middlewares: security-auth@file
-            traefik.http.services.pihole.loadbalancer.server.port: 80
+            traefik.http.routers.adguard.entrypoints: https
+            traefik.http.routers.adguard.rule: Host(`adguard.domain.tld`)
+            traefik.http.routers.adguard.tls: true
+            traefik.http.routers.adguard.middlewares: security@file
+            traefik.http.services.adguard.loadbalancer.server.port: 443
+            traefik.http.services.adguard.loadbalancer.server.scheme: https
+
+    certdumper:
+        image: humenius/traefik-certs-dumper
+        container_name: adguard_certdumper
+        restart: unless-stopped
+        network_mode: none
+        volumes:
+            - ./traefik:/traefik:ro
+            # mount mailcow's SSL folder
+            - ./adguard/workdir/ssl/:/output:rw
+        environment:
+            # only change this, if you're using another domain for mailcow's web frontend compared to the standard config
+            - DOMAIN=domain.tld
 
     duplicati:
         image: ghcr.io/linuxserver/duplicati
@@ -120,6 +142,9 @@ services:
             traefik.http.services.duplicati.loadbalancer.server.port: 8200
 
     samba:
+#        build: 
+#            context: https://github.com/dperson/samba.git
+#            dockerfile: Dockerfile
         image: dperson/samba
         container_name: samba
         restart: always
@@ -136,7 +161,7 @@ services:
         - /z-data/torrent:/mount/downloads
         - /z-data/Storage:/mount/data
         - /mnt/usb:/mount/usb
-        command: '-s "data;/mount/data;yes;no;no;user;user;;" -s "downloads;/mount/downloads;yes;no;no;user;user;;" -s "usb;/mount/usb;yes;no;no;user;user;;" -u "user;password" -r'
+        command: '-g "strict locking = no" -s "data;/mount/data;yes;no;no;user2,user1;user2;;" -s "downloads;/mount/downloads;yes;no;no;user2;user2;;" -s "usb;/mount/usb;yes;no;no;user2;user2;;" -u "user2;password" -u "user1;password" -r'
 
     watchtower:
         image: containrrr/watchtower
@@ -169,33 +194,82 @@ services:
             traefik.http.routers.adminer.middlewares: security-auth@file
             traefik.http.services.adminer.loadbalancer.server.port: 8080
 
-    wireguard:
-        container_name: wireguard
-        image: place1/wg-access-server
-        cap_add:
-        - NET_ADMIN
+    wg-easy:
         environment:
-            WG_WIREGUARD_PRIVATE_KEY: OICa8O+5Ix//bjXYd/od6D0R7lIlY1fDRm2QY0AgFGI=
-            WG_STORAGE: sqlite3:///wireguard-clients/db.sqlite3
-            WG_EXTERNAL_HOST: wg.domain.tld
-            WG_CONFIG: "/config.yaml"
-            WG_ADMIN_USERNAME: user
-            WG_ADMIN_PASSWORD: password
+            - WG_HOST=wg.domain.tld
+            - WG_PORT=51820
+            - WG_DEFAULT_ADDRESS=10.69.0.x
+            - WG_DEFAULT_DNS=10.69.0.1, 10.3.1.1
+            - WG_ALLOWED_IPS=10.69.0.0/24, 10.3.0.0/16
+        image: weejewel/wg-easy
+        container_name: wg-easy
         volumes:
-        - ./wg-as/wg-access-server:/data"
-        - ./wg-as/wireguard-clients:/wireguard-clients
-        - ./wg-as/wireguard/config.yaml:/config.yaml:ro # if you have a custom config file
+            - ./wg:/etc/wireguard
+        networks:
+            - LabNetwork
+            - default
         ports:
-        - "51820:51820/udp"
+            - "51820:51820/udp"
         expose:
-        - 8000
-        devices:
-        - "/dev/net/tun:/dev/net/tun"
+            - 51821
         restart: always
+        cap_add:
+            - NET_ADMIN
+            - SYS_MODULE
+        sysctls:
+            - net.ipv4.conf.all.src_valid_mark=1
         labels:
             traefik.enable: true
             traefik.http.routers.wg.entrypoints: https
             traefik.http.routers.wg.rule: Host(`wg.domain.tld`)
             traefik.http.routers.wg.tls: true
             traefik.http.routers.wg.middlewares: security-auth@file
-            traefik.http.services.wg.loadbalancer.server.port: 8000
+            traefik.http.services.wg.loadbalancer.server.port: 51821
+
+    syncthing:
+        image: syncthing/syncthing
+        container_name: syncthing
+        hostname: syncthing
+        environment:
+        - PUID=1000
+        - PGID=1000
+        volumes:
+        - ./syncthing:/var/syncthing
+        networks:
+        - default
+        - LabNetwork
+        ports:
+        - 22000:22000/tcp
+        - 22000:22000/udp
+        expose:
+        - 8384
+        restart: unless-stopped
+        labels:
+            traefik.enable: true
+            traefik.http.routers.syncthing.entrypoints: https
+            traefik.http.routers.syncthing.rule: Host(`sync.domain.tld`)
+            traefik.http.routers.syncthing.tls: true
+            traefik.http.routers.syncthing.middlewares: security-auth@file
+            traefik.http.services.syncthing.loadbalancer.server.port: 8384
+
+    languagetool:
+        image: erikvl87/languagetool
+        container_name: languagetool
+        expose:
+            - 8010
+        environment:
+            - langtool_languageModel=/ngrams  # OPTIONAL: Using ngrams data
+            - Java_Xms=512m  # OPTIONAL: Setting a minimal Java heap size of 512 mib
+            - Java_Xmx=4g  # OPTIONAL: Setting a maximum Java heap size of 1 Gib
+        networks:
+            - default
+            - LabNetwork
+        volumes:
+            - ./lt:/ngrams
+        labels:
+            traefik.enable: true
+            traefik.http.routers.lt.entrypoints: https
+            traefik.http.routers.lt.rule: Host(`lt.domain.tld`)
+            traefik.http.routers.lt.tls: true
+            traefik.http.routers.lt.middlewares: security@file
+            traefik.http.services.lt.loadbalancer.server.port: 8010

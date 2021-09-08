@@ -14,36 +14,26 @@ services:
       - default
     expose:
       - 6379
-    restart: always
+    restart: unless-stopped
     environment:
       - TZ=Europe/Lisbon
 
   chihaya:
     image: zmiguel/chihaya-redis-fix:latest
-    #container_name: chihaya
+    container_name: chihaya
     volumes:
-      - ./config.yaml:/etc/chihaya.yaml:ro
+      - ./config-udp.yaml:/etc/chihaya.yaml:ro
     networks:
       - default
-      - LabNetwork
-    labels:
-      traefik.enable: true
-      traefik.http.routers.chihaya.rule: Host(`tracker.domain.tld`)
-      traefik.http.routers.chihaya.entrypoints: https
-      traefik.http.routers.chihaya.tls: true
-      traefik.http.routers.chihaya.middlewares: security@file
-      traefik.http.services.chihaya.loadbalancer.server.port: 6969
     expose:
-      - 6969
       - 6880
+    ports:
+      - "1337:1337/udp"
     depends_on:
       - tracker-redis
-    restart: always
+    restart: unless-stopped
     environment:
       - TZ=Europe/Lisbon
-    deploy:
-      mode: replicated
-      replicas: 10
       
   tracker-prometheus:
     image: prom/prometheus:latest
@@ -58,4 +48,4 @@ services:
     networks:
       - default
       - LabNetwork
-    restart: always
+    restart: unless-stopped

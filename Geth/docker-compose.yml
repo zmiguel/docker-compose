@@ -1,0 +1,27 @@
+version: "3.8"
+
+networks:
+  LabNetwork:
+    external: true
+
+services:
+  geth:
+    container_name: geth
+    image: ethereum/client-go
+    restart: unless-stopped
+    networks:
+      - LabNetwork
+      - default
+    ports:
+      - 30303:30303
+      - "30303:30303/udp"
+      - 30304:30304
+#    expose:
+#      - 8545
+    volumes:
+      - /mnt/usb/ethereum:/root
+    command: '--maxpeers 250 --metrics --metrics.influxdb --metrics.influxdb.endpoint "http://influxdb:8086" --metrics.influxdb.username "user" --metrics.influxdb.password "password_here" --ethstats name:token@wss://server.ethstats.io'
+    deploy:
+      resources:
+        limits:
+          memory: 8G

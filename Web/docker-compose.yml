@@ -57,44 +57,8 @@ services:
       - LabNetwork
       - adminer
 
-  taskcafe:
-    image: taskcafe/taskcafe:latest
-    container_name: taskcafe
-    restart: unless-stopped
-    expose:
-      - 3333
-    depends_on:
-      - postgres_web
-    networks:
-      - default
-      - LabNetwork
-    environment:
-      TASKCAFE_DATABASE_HOST: postgres_web
-      TASKCAFE_MIGRATE: "true"
-    labels:
-      traefik.enable: true
-      traefik.http.routers.taskcafe.entrypoints: https
-      traefik.http.routers.taskcafe.rule: Host(`tasks.domain.tld`)
-      traefik.http.routers.taskcafe.tls: true
-      traefik.http.routers.taskcafe.middlewares: security@file
-      traefik.http.services.taskcafe.loadbalancer.server.port: 3333
-
-  postgres_web:
-    image: postgres:12.3-alpine
-    container_name: web_postgres
-    restart: always
-    networks:
-      - default
-      - adminer
-    environment:
-      POSTGRES_USER: taskcafe
-      POSTGRES_PASSWORD: taskcafe_test
-      POSTGRES_DB: taskcafe
-    volumes:
-    - ./postgres:/var/lib/postgresql/data
-
   ghost:
-    image: ghost:3-alpine
+    image: ghost:alpine
     container_name: ghost_blog
     restart: always
     expose:
@@ -137,29 +101,6 @@ services:
       MYSQL_USER: ghost
       MYSQL_PASSWORD: ghostpassword
 
-  plexyear:
-    image: php:7-apache
-    container_name: plexyear
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=Europe/Lisbon
-    volumes:
-      - ./plexyear/:/var/www/html
-    expose:
-      - 80
-    networks:
-      - default
-      - LabNetwork
-    restart: unless-stopped
-    labels:
-      traefik.enable: true
-      traefik.http.routers.plexyear.entrypoints: https
-      traefik.http.routers.plexyear.rule: Host(`plexyear.domain.tld`)
-      traefik.http.routers.plexyear.tls: true
-      traefik.http.routers.plexyear.middlewares: security@file
-      traefik.http.services.plexyear.loadbalancer.server.port: 80
-
   grocy:
     image: ghcr.io/linuxserver/grocy:latest
     container_name: grocy
@@ -183,47 +124,113 @@ services:
       traefik.http.routers.grocy.middlewares: security@file
       traefik.http.services.grocy.loadbalancer.server.port: 80
 
-  ghost-cebola:
-    image: ghost:3-alpine
-    container_name: ghost_cebola
-    restart: always
-    expose:
-      - 2368
-    networks:
-      - default
-      - LabNetwork
-    environment:
-      # see https://docs.ghost.org/docs/config#section-running-ghost-with-config-env-variables
-      database__client: mysql
-      database__connection__host: cebola_db
-      database__connection__user: cebola
-      database__connection__password: cebolapassword
-      database__connection__database: cebola
-      url: https://acebola.pt/
-    volumes:
-      - ./cebola:/var/lib/ghost/content
-    depends_on:
-      - cebola_db
-    labels:
-      traefik.enable: true
-      traefik.http.routers.ghost-cebola.entrypoints: https
-      traefik.http.routers.ghost-cebola.rule: Host(`acebola.pt`,`www.acebola.pt`)
-      traefik.http.routers.ghost-cebola.tls: true
-      traefik.http.routers.ghost-cebola.middlewares: security@file
-      traefik.http.services.ghost-cebola.loadbalancer.server.port: 2368
-
-  cebola_db:
+  web_mysql:
     image: mysql:5.7
-    container_name: cebola_db
+    container_name: web_mysql
     volumes:
-      - ./cebola/db:/var/lib/mysql
+      - ./mysql:/var/lib/mysql
     restart: always
     networks:
       - default
       - adminer
     environment:
       MYSQL_ROOT_PASSWORD: password
-      MYSQL_DATABASE: cebola
-      MYSQL_USER: cebola
-      MYSQL_PASSWORD: cebolapassword
+      MYSQL_DATABASE: bookstack
+      MYSQL_USER: web_mysql
+      MYSQL_PASSWORD: mysqlpassword
 
+  bookstack:
+    image: ghcr.io/linuxserver/bookstack
+    container_name: bookstack
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - APP_URL=https://docs.domain.tld/
+      - DB_HOST=web_mysql
+      - DB_USER=web_mysql
+      - DB_PASS=mysqlpassword
+      - DB_DATABASE=bookstack
+    networks:
+      - default
+      - LabNetwork
+    volumes:
+      - ./bookstack:/config
+    expose:
+      - 80
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.http.routers.bookstack.entrypoints: https
+      traefik.http.routers.bookstack.rule: Host(`docs.domain.tld`)
+      traefik.http.routers.bookstack.tls: true
+      traefik.http.routers.bookstack.middlewares: security@file
+      traefik.http.services.bookstack.loadbalancer.server.port: 80
+
+  planka:
+    image: meltyshev/planka:latest
+    container_name: planka
+    command: >
+      bash -c
+        "for i in `seq 1 30`; do
+          ./start.sh &&
+          s=$$? && break || s=$$?;
+          echo \"Tried $$i times. Waiting 5 seconds...\";
+          sleep 5;
+        done; (exit $$s)"
+    restart: unless-stopped
+    volumes:
+      - ./board/user-avatars:/app/public/user-avatars
+      - ./board/project-background-images:/app/public/project-background-images
+      - ./board/attachments:/app/public/attachments
+    networks:
+      - default
+      - LabNetwork
+    expose:
+      - 1337
+    environment:
+      - BASE_URL=https://board.domain.tld
+      - DATABASE_URL=postgresql://postgres@postgres-board/planka
+      - SECRET_KEY=12431d569c99380a413458ee1e379e14d57f12de26609663e6640a2f12dfac2f6aa1951a72a95ca1cdf94dce3643f64f3491e971f833c954b10cc2d075281ac9
+    depends_on:
+      - postgres-board
+    labels:
+      traefik.enable: true
+      traefik.http.routers.board.entrypoints: https
+      traefik.http.routers.board.rule: Host(`board.domain.tld`)
+      traefik.http.routers.board.tls: true
+      traefik.http.routers.board.middlewares: security-auth@file
+      traefik.http.services.board.loadbalancer.server.port: 1337
+
+  postgres-board:
+    image: postgres:alpine
+    container_name: postgres-board
+    restart: unless-stopped
+    networks:
+      - default
+      - adminer
+    volumes:
+      - ./board/db-data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=planka
+      - POSTGRES_HOST_AUTH_METHOD=trust
+
+  flame:
+    image: pawelmalak/flame:latest
+    container_name: flame
+    environment:
+      - TZ=Europe/Lisbon
+    expose:
+      - 5005
+    networks:
+      - default
+      - LabNetwork
+    volumes:
+      - ./flame:/app/data
+    restart: unless-stopped
+    labels:
+      traefik.enable: true
+      traefik.http.routers.flame.entrypoints: https
+      traefik.http.routers.flame.rule: Host(`flame.domain.tld`)
+      traefik.http.routers.flame.tls: true
+      traefik.http.routers.flame.middlewares: security@file
+      traefik.http.services.flame.loadbalancer.server.port: 5005

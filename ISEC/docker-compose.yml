@@ -28,17 +28,19 @@ services:
     expose:
       - 80
     depends_on:
+    #  - redis-isec
       - postgres-isec
     restart: always
     environment:
       - TZ=Europe/Lisbon
+    #  - REDIS_HOST=redis-isec
       - SMTP_HOST=mail.domain.tld
       - SMTP_SECURE=tls
       - SMTP_PORT=587
-      - SMTP_NAME=isec@domain.tld
-      - MAIL_FROM_ADDRESS=isec@domain.tld
-      - SMTP_PASSWORD=email_password
-      - TRUSTED_PROXIES=traefik #this is the hostname of the traefik container
+      - SMTP_NAME=isec@lab.domain.tld
+      - MAIL_FROM_ADDRESS=isec@lab.domain.tld
+      - SMTP_PASSWORD=password_goes_here
+      - TRUSTED_PROXIES=traefik
       - OVERWRITEPROTOCOL=https
       - OVERWRITEHOST=isec.domain.tld
 

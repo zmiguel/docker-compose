@@ -5,17 +5,86 @@ networks:
     external: true
 
 services:
-  minecraft:
-    image: itzg/minecraft-server:latest
-    container_name: minecraft
+  ptero-certdumper:
+    image: humenius/traefik-certs-dumper
+    container_name: ptero_certdumper
+    restart: unless-stopped
+    network_mode: none
     volumes:
-      - ./minecraft_snapshot:/data
+      - ../main-stack/traefik:/traefik:ro
+      # mount mailcow's SSL folder
+      - ./ssl:/output:rw
+    environment:
+      - DOMAIN=domain.tld
+
+  panel:
+    depends_on:
+      cache:
+        condition: service_started
+      mysql:
+        condition: service_started
+    env_file: ./conf.d/panel.env
+    image: ccarney16/pterodactyl-panel:latest
     networks:
       - default
-    ports:
-      - 25565:25565
-    restart: unless-stopped
-    environment:
-      - EULA=TRUE
-      - VERSION=SNAPSHOT
-      - MEMORY=8G
+      - LabNetwork
+    expose:
+      - 443
+    restart: always
+    volumes:
+      - ./data/panel:/data
+      - ./ssl:/etc/certs
+    labels:
+      traefik.enable: true
+      traefik.http.routers.ptero.rule: Host(`panel.domain.tld`)
+      traefik.http.routers.ptero.entrypoints: https
+      traefik.http.routers.ptero.tls: true
+      traefik.http.routers.ptero.middlewares: security@file
+      traefik.http.services.ptero.loadbalancer.server.port: 443
+      traefik.http.services.ptero.loadbalancer.server.scheme: https
+
+  worker:
+    command: wait-for -t 5 panel:80 -- php /var/www/html/artisan queue:work --queue=high,standard,low --sleep=3 --tries=3
+    depends_on:
+      panel:
+        condition: service_started
+    env_file: ./conf.d/panel.env
+    image: ccarney16/pterodactyl-panel:latest
+    labels:
+      ofelia.enabled: "true"
+      ofelia.job-exec.pqueue.schedule: "@every 1m"
+      ofelia.job-exec.pqueue.command: "php /var/www/html/artisan schedule:run"
+      ofelia.job-exec.pqueue.user: "nginx"
+    restart: always
+    volumes_from:
+      - panel
+
+  cron:
+    command: daemon --docker
+    depends_on:
+      panel:
+        condition: service_started
+      worker:
+        condition: service_started
+    image: mcuadros/ofelia:latest
+    network_mode: none
+    privileged: true
+    restart: always
+    volumes:
+      - ${DOCKER_SOCKET:-/var/run/docker.sock}:${DOCKER_SOCKET:-/var/run/docker.sock}
+
+  cache:
+    cpu_count: 2
+    cpu_percent: 50
+    image: redis:alpine
+    mem_limit: 128m
+    restart: always
+
+  mysql:
+    image: mariadb:10.4
+    env_file: ./conf.d/mariadb.env
+    expose:
+      - 3306
+    restart: always
+    volumes:
+      - ./data/db:/var/lib/mysql
