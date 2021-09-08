@@ -16,6 +16,7 @@ LabNetwork | Connects containers to the traefik reverse proxy
 Adminer | Connect databases to the adminer container
 Default | default network of each stack for intra stack comunication
 
+-----
 
 ## Stacks
 I organize my containers in stacks.
